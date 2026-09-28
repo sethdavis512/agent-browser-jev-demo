@@ -170,7 +170,7 @@ export default function Home() {
             <RunStatus run={run} steps={steps.length} />
 
             <div className="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
-                <ol className="grid gap-6">
+                <ol className="grid gap-6 empty:hidden lg:empty:grid">
                     {steps.map((step) => (
                         <StepCard key={step.index} step={step} />
                     ))}
