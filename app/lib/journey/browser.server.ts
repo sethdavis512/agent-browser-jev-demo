@@ -125,11 +125,26 @@ function launchArgs(): string[] {
     return ['--executable-path', SYSTEM_CHROMIUM, '--args', '--no-sandbox'];
 }
 
+/** One high-level browser action, for the activity panel. */
+export type BrowserAction = {
+    title: string;
+    /** The agent-browser command that does the main work. */
+    command: string;
+    detail: string[];
+    /** CLI invocations the action took (waits, evals, and the command). */
+    calls: number;
+    ms: number;
+};
+
 /**
  * Thin wrapper over the agent-browser CLI. Each session gets its own daemon
- * and browser, so concurrent journeys never share tabs.
+ * and browser, so concurrent journeys never share tabs. `onAction` hears
+ * about every high-level action with its timing.
  */
-export function createBrowser(session: string) {
+export function createBrowser(
+    session: string,
+    { onAction }: { onAction?: (action: BrowserAction) => void } = {},
+) {
     const base = [
         '--session',
         session,
@@ -142,8 +157,10 @@ export function createBrowser(session: string) {
         '5m',
         ...launchArgs(),
     ];
+    let calls = 0;
 
     async function cli(args: string[], input?: string) {
+        calls++;
         const child = run(BIN, [...base, ...args], {
             maxBuffer: 20 * 1024 * 1024,
             timeout: COMMAND_TIMEOUT_MS,
@@ -151,6 +168,35 @@ export function createBrowser(session: string) {
         if (input !== undefined) child.child.stdin?.end(input);
         const { stdout } = await child;
         return stdout;
+    }
+
+    /** Runs one action and reports it, including when it fails. */
+    async function traced<T>(
+        title: string,
+        command: string,
+        fn: () => Promise<T>,
+        describe: (result: T) => string[] = () => [],
+    ): Promise<T> {
+        const started = performance.now();
+        const callsBefore = calls;
+        const report = (detail: string[]) =>
+            onAction?.({
+                title,
+                command: `agent-browser ${command}`,
+                detail,
+                calls: calls - callsBefore,
+                ms: Math.round(performance.now() - started),
+            });
+        try {
+            const result = await fn();
+            report(describe(result));
+            return result;
+        } catch (error) {
+            report([
+                `Failed: ${error instanceof Error ? error.message.slice(0, 200) : String(error)}`,
+            ]);
+            throw error;
+        }
     }
 
     /**
@@ -215,91 +261,118 @@ export function createBrowser(session: string) {
         }
     }
 
-    return {
-        async open(url: string) {
-            await cli([
-                'set',
-                'viewport',
-                String(VIEWPORT.width),
-                String(VIEWPORT.height),
-            ]);
-            await cli(['open', url]);
-            await settle();
-        },
+    async function readPage(): Promise<PageState> {
+        const snapshot = await json<{
+            snapshot: string;
+            refs: Record<string, { role: string; name: string }>;
+        }>(['snapshot', '-i', '-c', '-u']);
+        const urls = parseRefUrls(snapshot.snapshot);
+        const order = refOrder(snapshot.snapshot);
+        const { result } = await json<{ result: string }>(
+            ['eval', '--stdin'],
+            READ_PAGE,
+        );
+        const page = JSON.parse(result) as Pick<
+            PageState,
+            'url' | 'title' | 'text'
+        >;
+        return {
+            ...page,
+            tree: snapshot.snapshot,
+            refs: Object.entries(snapshot.refs)
+                .map(([ref, value]) => ({
+                    ref,
+                    role: value.role,
+                    name: value.name,
+                    href: urls.get(ref),
+                }))
+                .sort(
+                    (a, b) =>
+                        (order.get(a.ref) ?? Number.MAX_SAFE_INTEGER) -
+                        (order.get(b.ref) ?? Number.MAX_SAFE_INTEGER),
+                ),
+        };
+    }
 
-        async read(): Promise<PageState> {
-            const snapshot = await json<{
-                snapshot: string;
-                refs: Record<string, { role: string; name: string }>;
-            }>(['snapshot', '-i', '-c', '-u']);
-            const urls = parseRefUrls(snapshot.snapshot);
-            const order = refOrder(snapshot.snapshot);
-            const { result } = await json<{ result: string }>(
+    /**
+     * Viewport-relative box after bringing the element to the middle of the
+     * screen, or null when it can't be shown (hidden, zero-size, or inside a
+     * container that won't scroll it into the viewport).
+     */
+    async function measureBox(ref: string): Promise<Box | null> {
+        // Sites with `scroll-behavior: smooth` would still be animating when
+        // the screenshot is taken.
+        await cli(['eval', '--stdin'], INSTANT_SCROLL).catch(() => {});
+        await cli(['scrollintoview', `@${ref}`]).catch(() => {});
+        const measure = () =>
+            json<Box>(['get', 'box', `@${ref}`]).catch(() => null);
+
+        let box = await measure();
+        if (!box || box.width < 1 || box.height < 1) return null;
+
+        const offset = Math.round(box.y + box.height / 2 - VIEWPORT.height / 2);
+        if (Math.abs(offset) > 80) {
+            await cli(
                 ['eval', '--stdin'],
-                READ_PAGE,
+                `window.scrollBy({ top: ${offset}, behavior: 'instant' })`,
+            ).catch(() => {});
+            box = await measure();
+            if (!box) return null;
+        }
+
+        const onScreen =
+            box.y >= 0 &&
+            box.x >= 0 &&
+            box.y + box.height <= VIEWPORT.height &&
+            box.x + box.width <= VIEWPORT.width;
+        if (!onScreen) return null;
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+    }
+
+    return {
+        open(url: string) {
+            return traced(
+                'Open the start page',
+                `open ${url}`,
+                async () => {
+                    await cli([
+                        'set',
+                        'viewport',
+                        String(VIEWPORT.width),
+                        String(VIEWPORT.height),
+                    ]);
+                    await cli(['open', url]);
+                    await settle();
+                },
+                () => [
+                    `Viewport ${VIEWPORT.width}×${VIEWPORT.height}, waited for the page to settle`,
+                ],
             );
-            const page = JSON.parse(result) as Pick<
-                PageState,
-                'url' | 'title' | 'text'
-            >;
-            return {
-                ...page,
-                tree: snapshot.snapshot,
-                refs: Object.entries(snapshot.refs)
-                    .map(([ref, value]) => ({
-                        ref,
-                        role: value.role,
-                        name: value.name,
-                        href: urls.get(ref),
-                    }))
-                    .sort(
-                        (a, b) =>
-                            (order.get(a.ref) ?? Number.MAX_SAFE_INTEGER) -
-                            (order.get(b.ref) ?? Number.MAX_SAFE_INTEGER),
-                    ),
-            };
         },
 
-        /**
-         * Viewport-relative box after bringing the element to the middle of
-         * the screen, or null when it can't be shown (hidden, zero-size, or
-         * inside a container that won't scroll it into the viewport).
-         */
-        async box(ref: string): Promise<Box | null> {
-            // Sites with `scroll-behavior: smooth` would still be animating
-            // when the screenshot is taken.
-            await cli(['eval', '--stdin'], INSTANT_SCROLL).catch(() => {});
-            await cli(['scrollintoview', `@${ref}`]).catch(() => {});
-            const measure = () =>
-                json<Box>(['get', 'box', `@${ref}`]).catch(() => null);
-
-            let box = await measure();
-            if (!box || box.width < 1 || box.height < 1) return null;
-
-            const offset = Math.round(
-                box.y + box.height / 2 - VIEWPORT.height / 2,
+        read() {
+            return traced(
+                'Read the page',
+                'snapshot -i -c -u',
+                readPage,
+                (page) => [
+                    `${page.refs.length} elements in the accessibility tree`,
+                    `${page.text.length.toLocaleString('en-US')} characters of page text`,
+                ],
             );
-            if (Math.abs(offset) > 80) {
-                await cli(
-                    ['eval', '--stdin'],
-                    `window.scrollBy({ top: ${offset}, behavior: 'instant' })`,
-                ).catch(() => {});
-                box = await measure();
-                if (!box) return null;
-            }
+        },
 
-            const onScreen =
-                box.y >= 0 &&
-                box.x >= 0 &&
-                box.y + box.height <= VIEWPORT.height &&
-                box.x + box.width <= VIEWPORT.width;
-            if (!onScreen) return null;
-            return {
-                x: box.x,
-                y: box.y,
-                width: box.width,
-                height: box.height,
-            };
+        box(ref: string) {
+            return traced(
+                'Scroll the target into view',
+                `scrollintoview @${ref}`,
+                () => measureBox(ref),
+                (box) => [
+                    box
+                        ? 'Measured its box for the highlight'
+                        : 'Could not show it on screen, so no highlight',
+                ],
+            );
         },
 
         /**
@@ -307,46 +380,85 @@ export function createBrowser(session: string) {
          * for Jev to choose the evidence from. Empty on failure: evidence is
          * a nice-to-have and must not end the run.
          */
-        async evidenceCandidates(terms: Term[]): Promise<string[]> {
-            if (terms.length === 0) return [];
-            try {
-                const { result } = await json<{ result: string }>(
-                    ['eval', '--stdin'],
-                    COLLECT_EVIDENCE(terms),
-                );
-                return JSON.parse(result) as string[];
-            } catch {
-                return [];
-            }
+        evidenceCandidates(terms: Term[]) {
+            return traced(
+                'Find passages that mention the goal',
+                'eval --stdin',
+                async (): Promise<string[]> => {
+                    if (terms.length === 0) return [];
+                    try {
+                        const { result } = await json<{ result: string }>(
+                            ['eval', '--stdin'],
+                            COLLECT_EVIDENCE(terms),
+                        );
+                        return JSON.parse(result) as string[];
+                    } catch {
+                        return [];
+                    }
+                },
+                (passages) => [
+                    `Searched for ${terms
+                        .slice(0, 5)
+                        .map((t) => `"${t.term}"`)
+                        .join(', ')}`,
+                    `${passages.length} candidate passages`,
+                ],
+            );
         },
 
         /** Scroll candidate `index` (from evidenceCandidates) into view. */
-        async revealEvidence(index: number): Promise<Box | null> {
-            await cli(['eval', '--stdin'], INSTANT_SCROLL).catch(() => {});
-            const found = await json<{ result: string }>(
-                ['eval', '--stdin'],
-                REVEAL_EVIDENCE(index),
-            ).catch(() => null);
-            return found ? (JSON.parse(found.result) as Box | null) : null;
+        revealEvidence(index: number) {
+            return traced(
+                'Scroll the answer into view',
+                'eval --stdin',
+                async () => {
+                    await cli(['eval', '--stdin'], INSTANT_SCROLL).catch(
+                        () => {},
+                    );
+                    const found = await json<{ result: string }>(
+                        ['eval', '--stdin'],
+                        REVEAL_EVIDENCE(index),
+                    ).catch(() => null);
+                    return found
+                        ? (JSON.parse(found.result) as Box | null)
+                        : null;
+                },
+            );
         },
 
-        async screenshot(path: string) {
-            await cli(['screenshot', path]);
-            return path;
+        screenshot(path: string) {
+            return traced('Take a screenshot', 'screenshot', async () => {
+                await cli(['screenshot', path]);
+                return path;
+            });
         },
 
         /**
          * Click an element, then settle. `isLink` (an element with an href)
          * means a navigation is expected, so the wait for it is longer.
+         * `label` names the element in the activity panel.
          */
-        async click(ref: string, { isLink = false } = {}) {
-            const { url: fromUrl } = await json<{ url: string }>([
-                'get',
-                'url',
-            ]);
-            await cli(['click', `@${ref}`]);
-            await settle({ fromUrl, expectNavigation: isLink });
-            await closeInactiveTabs();
+        click(ref: string, { isLink = false, label = '' } = {}) {
+            return traced(
+                'Click',
+                `click @${ref}`,
+                async () => {
+                    const { url: fromUrl } = await json<{ url: string }>([
+                        'get',
+                        'url',
+                    ]);
+                    await cli(['click', `@${ref}`]);
+                    await settle({ fromUrl, expectNavigation: isLink });
+                    await closeInactiveTabs();
+                },
+                () =>
+                    [
+                        label,
+                        isLink
+                            ? 'Waited for the next page to load'
+                            : 'Waited for the page to react',
+                    ].filter(Boolean),
+            );
         },
 
         async url() {
@@ -354,13 +466,22 @@ export function createBrowser(session: string) {
             return url;
         },
 
-        async back() {
-            await cli(['back']);
-            await settle();
+        back() {
+            return traced(
+                'Go back',
+                'back',
+                async () => {
+                    await cli(['back']);
+                    await settle();
+                },
+                () => ['The click left the site'],
+            );
         },
 
-        async close() {
-            await cli(['close']).catch(() => {});
+        close() {
+            return traced('Close the browser', 'close', async () => {
+                await cli(['close']).catch(() => {});
+            });
         },
     };
 }

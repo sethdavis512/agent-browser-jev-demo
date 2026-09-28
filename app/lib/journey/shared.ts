@@ -29,9 +29,30 @@ export type StepView = {
     evidence: { box: Box; text: string } | null;
 };
 
+/** Who did the work: the browser, Jev's judgment, or the app itself. */
+export type ActivitySource = 'browser' | 'jev' | 'app';
+
+/** One thing that happened behind the scenes, for the activity panel. */
+export type Activity = {
+    source: ActivitySource;
+    /** The screen (0-based) this belongs to. */
+    step: number;
+    title: string;
+    /** The command or API call that did the work. */
+    command: string;
+    detail: string[];
+    ms: number;
+};
+
 /** One line of the /run response stream (newline-delimited JSON). */
 export type RunEvent =
     | { type: 'start'; startUrl: string; goal: string }
+    | { type: 'activity'; activity: Activity & { at: number } }
     | { type: 'step'; step: StepView }
-    | { type: 'done'; status: JourneyStatus; finalUrl: string }
-    | { type: 'error'; message: string };
+    | {
+          type: 'done';
+          status: JourneyStatus;
+          finalUrl: string;
+          totalMs: number;
+      }
+    | { type: 'error'; message: string; totalMs: number };

@@ -12,6 +12,7 @@ import {
 } from './candidates';
 import { focusText, goalTerms, type Term } from './focus';
 import { judgeStep, pickEvidence } from './judge.server';
+import type { Activity } from './shared';
 
 export type NavigateInput = {
     startUrl: string;
@@ -21,6 +22,8 @@ export type NavigateInput = {
     arrivalThreshold: number;
     /** agent-browser session name; unique per run. */
     session: string;
+    /** Hears about each browser action and Jev decision, with timings. */
+    onActivity?: (activity: Activity) => void;
 };
 
 export type CapturedStep = {
@@ -58,7 +61,21 @@ export async function navigate(
     input: NavigateInput,
     onStep: (step: CapturedStep) => Promise<void>,
 ): Promise<NavigateOutcome> {
-    const browser = createBrowser(input.session);
+    // The screen the loop is on, so browser actions land under it.
+    let current = 0;
+    const report = (activity: Omit<Activity, 'step'>) =>
+        input.onActivity?.({ ...activity, step: current });
+    const browser = createBrowser(input.session, {
+        onAction: ({ calls, ...action }) =>
+            report({
+                source: 'browser',
+                ...action,
+                detail: [
+                    ...action.detail,
+                    `${calls} CLI ${calls === 1 ? 'call' : 'calls'}`,
+                ],
+            }),
+    });
     const dir = await mkdtemp(join(tmpdir(), 'journey-'));
     const clicked = new Set<string>();
     const history: string[] = [];
@@ -68,10 +85,20 @@ export async function navigate(
         await browser.open(input.startUrl);
 
         for (let index = 0; ; index++) {
+            current = index;
             const page = await browser.read();
 
             // Never interact with a bot check: record the wall and stop.
             if (isBotChallenge(page)) {
+                report({
+                    source: 'app',
+                    title: 'Bot check detected',
+                    command: 'isBotChallenge(page)',
+                    detail: [
+                        'Journeys stop at bot checks and never solve them',
+                    ],
+                    ms: 0,
+                });
                 const screenshotPath = await browser.screenshot(
                     join(dir, `step-${index}.png`),
                 );
@@ -90,12 +117,14 @@ export async function navigate(
 
             const terms = goalTerms(input.goal, page.text);
             const candidates = pickCandidates(page.url, page.refs, clicked);
+            const judgeStarted = performance.now();
             const judgment = await judgeStep({
                 goal: input.goal,
                 page: { ...page, text: focusText(page.text, terms) },
                 candidates,
                 history,
             });
+            const judgeMs = Math.round(performance.now() - judgeStarted);
             tokens.input += judgment.usage.input_tokens;
             tokens.output += judgment.usage.output_tokens;
 
@@ -107,10 +136,25 @@ export async function navigate(
                 arrivalThreshold: input.arrivalThreshold,
             });
             const target = status ? null : judgment.next;
+            report({
+                source: 'jev',
+                title: 'Judge the screen',
+                command: 'systemOne: noul(arrived?) + choice(next click?)',
+                detail: [
+                    `Destination? ${percent(judgment.arrived)} likely (${percent(input.arrivalThreshold)} counts as found)`,
+                    judgment.next
+                        ? `Best click: ${judgment.next.role} "${judgment.next.name}", ${percent(judgment.confidence)} confident`
+                        : 'Best click: none of them',
+                    `Picked from ${candidates.length} clickable elements`,
+                    `${(judgment.usage.input_tokens + judgment.usage.output_tokens).toLocaleString('en-US')} tokens`,
+                    `Decision: ${DECISIONS[status ?? 'CONTINUE']}`,
+                ],
+                ms: judgeMs,
+            });
             const box = target ? await browser.box(target.ref) : null;
             const evidence =
                 status === 'FOUND'
-                    ? await findEvidence(browser, input.goal, terms)
+                    ? await findEvidence(browser, input.goal, terms, report)
                     : null;
             const screenshotPath = await browser.screenshot(
                 join(dir, `step-${index}.png`),
@@ -142,6 +186,7 @@ export async function navigate(
             try {
                 await browser.click(target.ref, {
                     isLink: Boolean(target.href),
+                    label: `${target.role} "${target.name}"`,
                 });
             } catch {
                 history.push(`Tried to click ${label}, but it failed`);
@@ -172,10 +217,37 @@ async function findEvidence(
     browser: Browser,
     goal: string,
     terms: Term[],
+    report: (activity: Omit<Activity, 'step'>) => void,
 ): Promise<{ box: Box; text: string } | null> {
     const passages = await browser.evidenceCandidates(terms);
+    if (passages.length === 0) return null;
+    const started = performance.now();
     const index = await pickEvidence(goal, passages).catch(() => null);
-    if (index === null || !passages[index]) return null;
+    const picked = index === null ? undefined : passages[index];
+    report({
+        source: 'jev',
+        title: 'Pick the passage that answers the goal',
+        command: 'systemOne: choice(which passage?)',
+        detail: [
+            `Chose from ${passages.length} passages`,
+            picked
+                ? `"${picked.length > 140 ? `${picked.slice(0, 140)}…` : picked}"`
+                : 'None of them answers it',
+        ],
+        ms: Math.round(performance.now() - started),
+    });
+    if (index === null || !picked) return null;
     const box = await browser.revealEvidence(index);
     return box ? { box, text: passages[index] } : null;
+}
+
+const DECISIONS = {
+    FOUND: 'this is the destination, stop here',
+    STUCK: 'nothing here leads closer, stop',
+    OUT_OF_STEPS: 'out of steps, stop',
+    CONTINUE: 'click it and keep going',
+} as const;
+
+function percent(value: number) {
+    return `${Math.round(value * 100)}%`;
 }

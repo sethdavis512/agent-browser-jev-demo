@@ -17,6 +17,11 @@ if (enabled) {
     });
 }
 
+/** How screenshots reach the page, for the activity panel. */
+export const imageStorage = enabled
+    ? 'cloudinary.uploader.upload'
+    : 'inline data URL (no Cloudinary keys)';
+
 /** Every run's screenshots live under one folder per run. */
 const FOLDER = 'agent-browser-jev-demo';
 

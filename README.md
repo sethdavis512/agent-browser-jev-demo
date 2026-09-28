@@ -1,7 +1,10 @@
 # agent-browser-jev-demo
 
-Type a site and something to find. A real browser walks the site one click at
-a time, and each screen it visits shows up below as it happens.
+Type a site and something to find, or pick one of the examples. A real
+browser walks the site one click at a time. Each screen it visits shows up on
+the left as it happens, and the panel on the right shows what's going on
+behind it: every agent-browser action, every Jev decision, and how long each
+one took.
 
 ```
 stripe.com: find the fee for international cards
@@ -34,21 +37,27 @@ Journeys use your local Chrome, which agent-browser finds on its own.
    into the response as a data URL) and streams back to the page as one line
    of JSON. The page draws it with a blue ring on the element that was
    clicked, and a green ring on the passage that answers the goal.
+5. Along the way the loop reports each browser action (with the
+   agent-browser command and how many CLI calls it took) and each Jev
+   decision (the arrival probability, the chosen click and its confidence,
+   token count), all timed. They stream as `activity` lines and fill the
+   "Behind the scenes" panel.
 
 A journey stops when Jev finds the destination, runs out of ideas, hits 10
 screens, or meets a bot check (it never tries to get past one). Only public
 http(s) sites can be visited.
 
-| File                                 | What it does                                     |
-| ------------------------------------ | ------------------------------------------------ |
-| `app/routes/home.tsx`                | The page: text box, status line, screenshot grid |
-| `app/routes/run.ts`                  | Runs a journey and streams it as NDJSON          |
-| `app/lib/journey/navigate.server.ts` | The read, judge, screenshot, click loop          |
-| `app/lib/journey/browser.server.ts`  | agent-browser CLI wrapper                        |
-| `app/lib/journey/judge.server.ts`    | The Jev questions                                |
-| `app/lib/journey/candidates.ts`      | Which elements are clickable, same-site checks   |
-| `app/lib/journey/focus.ts`           | Goal-focused page text for long pages            |
-| `app/lib/cloudinary.server.ts`       | Screenshot upload (or data URL fallback)         |
+| File                                 | What it does                                   |
+| ------------------------------------ | ---------------------------------------------- |
+| `app/routes/home.tsx`                | The page: text box, examples, screenshots      |
+| `app/components/ActivityPanel.tsx`   | The "Behind the scenes" timeline and timings   |
+| `app/routes/run.ts`                  | Runs a journey and streams it as NDJSON        |
+| `app/lib/journey/navigate.server.ts` | The read, judge, screenshot, click loop        |
+| `app/lib/journey/browser.server.ts`  | agent-browser CLI wrapper                      |
+| `app/lib/journey/judge.server.ts`    | The Jev questions                              |
+| `app/lib/journey/candidates.ts`      | Which elements are clickable, same-site checks |
+| `app/lib/journey/focus.ts`           | Goal-focused page text for long pages          |
+| `app/lib/cloudinary.server.ts`       | Screenshot upload (or data URL fallback)       |
 
 ## Deploy
 

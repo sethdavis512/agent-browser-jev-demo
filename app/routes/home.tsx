@@ -1,5 +1,6 @@
 import { ArrowRight, Loader2 } from 'lucide-react';
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { ActivityPanel, type TimedActivity } from '~/components/ActivityPanel';
 import {
     VIEWPORT,
     type Box,
@@ -14,6 +15,20 @@ type RunState =
     | { phase: 'done'; status: JourneyStatus }
     | { phase: 'error'; message: string };
 
+/** Ready-made prompts that run as soon as they are picked. */
+const EXAMPLES = [
+    "github.com: find the page that shows GitHub's pricing plans",
+    'stripe.com: find the fee for international cards',
+    'vercel.com: find the price of the Pro plan',
+    'railway.com: find how much a GB of RAM costs per month',
+    'python.org: find the latest Python release',
+    'developer.mozilla.org: find the docs for Array.prototype.flatMap',
+    'react.dev: find the reference page for useEffect',
+    'tailwindcss.com: find the docs page about dark mode',
+    'nodejs.org: find the download for the LTS release',
+    'nasa.gov: find the page about the Artemis program',
+];
+
 const OUTCOME: Record<JourneyStatus, string> = {
     FOUND: 'Found it.',
     STUCK: 'Got stuck: nothing on the last screen looked like a way forward.',
@@ -25,21 +40,38 @@ export default function Home() {
     const [prompt, setPrompt] = useState('');
     const [steps, setSteps] = useState<StepView[]>([]);
     const [run, setRun] = useState<RunState>({ phase: 'idle' });
+    const [activities, setActivities] = useState<TimedActivity[]>([]);
+    const [startedAt, setStartedAt] = useState<number | null>(null);
+    const [totalMs, setTotalMs] = useState<number | null>(null);
     const abort = useRef<AbortController | null>(null);
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        void start(prompt);
+    }
+
+    function handleExample(event: ChangeEvent<HTMLSelectElement>) {
+        const example = event.target.value;
+        if (!example) return;
+        setPrompt(example);
+        void start(example);
+    }
+
+    async function start(text: string) {
         abort.current?.abort();
         const controller = new AbortController();
         abort.current = controller;
         setSteps([]);
+        setActivities([]);
+        setStartedAt(Date.now());
+        setTotalMs(null);
         setRun({ phase: 'running', host: null });
 
         try {
             const response = await fetch('/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt }),
+                body: JSON.stringify({ prompt: text }),
                 signal: controller.signal,
             });
             if (!response.ok || !response.body) {
@@ -68,11 +100,15 @@ export default function Home() {
                 phase: 'running',
                 host: new URL(event.startUrl).hostname,
             });
+        } else if (event.type === 'activity') {
+            setActivities((current) => [...current, event.activity]);
         } else if (event.type === 'step') {
             setSteps((current) => [...current, event.step]);
         } else if (event.type === 'done') {
+            setTotalMs(event.totalMs);
             setRun({ phase: 'done', status: event.status });
         } else {
+            setTotalMs(event.totalMs);
             setRun({ phase: 'error', message: event.message });
         }
     }
@@ -80,9 +116,12 @@ export default function Home() {
     const running = run.phase === 'running';
 
     return (
-        <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+        <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
             <title>agent-browser-jev-demo</title>
-            <form onSubmit={handleSubmit} className="flex gap-2">
+            <form
+                onSubmit={handleSubmit}
+                className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_auto_auto]"
+            >
                 <label htmlFor="prompt" className="sr-only">
                     Where to start and what to find
                 </label>
@@ -97,6 +136,23 @@ export default function Home() {
                     required
                     className="border-border bg-card placeholder:text-muted-foreground focus:ring-ring h-12 min-w-0 flex-1 rounded-lg border px-4 text-base outline-none focus:ring-2"
                 />
+                <label htmlFor="example" className="sr-only">
+                    Run an example
+                </label>
+                <select
+                    id="example"
+                    value=""
+                    onChange={handleExample}
+                    disabled={running}
+                    className="border-border bg-card focus:ring-ring col-span-2 row-start-2 h-12 min-w-0 rounded-lg border px-3 text-base outline-none focus:ring-2 disabled:opacity-60 sm:col-span-1 sm:row-start-auto sm:w-56"
+                >
+                    <option value="">Run an example…</option>
+                    {EXAMPLES.map((example) => (
+                        <option key={example} value={example}>
+                            {example}
+                        </option>
+                    ))}
+                </select>
                 <button
                     type="submit"
                     disabled={running}
@@ -113,12 +169,20 @@ export default function Home() {
 
             <RunStatus run={run} steps={steps.length} />
 
-            <ol className="mt-6 grid gap-6 md:grid-cols-2">
-                {steps.map((step) => (
-                    <StepCard key={step.index} step={step} />
-                ))}
-                {running && <PendingCard />}
-            </ol>
+            <div className="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
+                <ol className="grid gap-6">
+                    {steps.map((step) => (
+                        <StepCard key={step.index} step={step} />
+                    ))}
+                    {running && <PendingCard />}
+                </ol>
+                <ActivityPanel
+                    activities={activities}
+                    running={running}
+                    startedAt={startedAt}
+                    totalMs={totalMs}
+                />
+            </div>
         </main>
     );
 }

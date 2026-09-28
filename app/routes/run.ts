@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { data } from 'react-router';
 import { z } from 'zod';
-import { screenshotUrl } from '~/lib/cloudinary.server';
+import { imageStorage, screenshotUrl } from '~/lib/cloudinary.server';
 import { navigate } from '~/lib/journey/navigate.server';
 import { parsePrompt } from '~/lib/journey/prompt';
 import {
     ARRIVAL_THRESHOLD,
     MAX_STEPS,
+    type Activity,
     type RunEvent,
 } from '~/lib/journey/shared';
 import type { Route } from './+types/run';
@@ -39,6 +40,14 @@ export async function action({ request }: Route.ActionArgs) {
                 );
             };
 
+            const startedAt = Date.now();
+            const elapsed = () => Date.now() - startedAt;
+            const activity = (entry: Activity) =>
+                send({
+                    type: 'activity',
+                    activity: { ...entry, at: elapsed() },
+                });
+
             send({ type: 'start', startUrl, goal });
             try {
                 const outcome = await navigate(
@@ -48,21 +57,32 @@ export async function action({ request }: Route.ActionArgs) {
                         maxSteps: MAX_STEPS,
                         arrivalThreshold: ARRIVAL_THRESHOLD,
                         session: `demo-${runId}`,
+                        onActivity: activity,
                     },
                     async (step) => {
                         // The page went away: throwing ends the loop, and
                         // navigate() closes the browser on the way out.
                         if (request.signal.aborted) throw new Error('aborted');
+                        const uploadStarted = Date.now();
+                        const imageUrl = await screenshotUrl(
+                            step.screenshotPath,
+                            { runId, index: step.index },
+                        );
+                        activity({
+                            source: 'app',
+                            step: step.index,
+                            title: 'Send the screenshot to the page',
+                            command: imageStorage,
+                            detail: [],
+                            ms: Date.now() - uploadStarted,
+                        });
                         send({
                             type: 'step',
                             step: {
                                 index: step.index,
                                 url: step.url,
                                 title: step.title,
-                                imageUrl: await screenshotUrl(
-                                    step.screenshotPath,
-                                    { runId, index: step.index },
-                                ),
+                                imageUrl,
                                 arrived: step.arrived,
                                 action: step.action && {
                                     role: step.action.role,
@@ -78,11 +98,16 @@ export async function action({ request }: Route.ActionArgs) {
                     type: 'done',
                     status: outcome.status,
                     finalUrl: outcome.finalUrl,
+                    totalMs: elapsed(),
                 });
             } catch (error) {
                 const message =
                     error instanceof Error ? error.message : String(error);
-                send({ type: 'error', message: message.slice(0, 500) });
+                send({
+                    type: 'error',
+                    message: message.slice(0, 500),
+                    totalMs: elapsed(),
+                });
             } finally {
                 if (!request.signal.aborted) controller.close();
             }

@@ -14,6 +14,9 @@
     --color-destructive: var(--destructive);
     --color-info: var(--info);
     --color-success: var(--success);
+    --color-browser: var(--browser);
+    --color-jev: var(--jev);
+    --color-app: var(--app);
 }
 
 :root {
@@ -30,6 +33,9 @@
     --destructive: oklch(0.505 0.213 27.518);
     --info: oklch(0.623 0.214 259.815);
     --success: oklch(0.696 0.17 162.48);
+    --browser: oklch(0.623 0.214 259.815);
+    --jev: oklch(0.606 0.25 292.717);
+    --app: oklch(0.769 0.188 70.08);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,6 +50,9 @@
         --primary: oklch(0.97 0 0);
         --primary-foreground: oklch(0.205 0 0);
         --destructive: oklch(0.704 0.191 22.216);
+        --browser: oklch(0.707 0.165 254.624);
+        --jev: oklch(0.702 0.183 293.541);
+        --app: oklch(0.828 0.189 84.429);
     }
 }
 
