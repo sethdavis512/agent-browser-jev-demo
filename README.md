@@ -41,7 +41,8 @@ Journeys use your local Chrome, which agent-browser finds on its own.
    agent-browser command and how many CLI calls it took) and each Jev
    decision (the arrival probability, the chosen click and its confidence,
    token count), all timed. They stream as `activity` lines and fill the
-   "Behind the scenes" panel.
+   "Behind the scenes" panel. Its info button opens a developer-facing
+   explanation of how the two tools hand off to each other.
 
 A journey stops when Jev finds the destination, runs out of ideas, hits 10
 screens, or meets a bot check (it never tries to get past one). Only public
@@ -51,6 +52,7 @@ http(s) sites can be visited.
 | ------------------------------------ | ---------------------------------------------- |
 | `app/routes/home.tsx`                | The page: text box, examples, screenshots      |
 | `app/components/ActivityPanel.tsx`   | The "Behind the scenes" timeline and timings   |
+| `app/components/AboutDialog.tsx`     | The info modal: how agent-browser and Jev fit  |
 | `app/routes/run.ts`                  | Runs a journey and streams it as NDJSON        |
 | `app/lib/journey/navigate.server.ts` | The read, judge, screenshot, click loop        |
 | `app/lib/journey/browser.server.ts`  | agent-browser CLI wrapper                      |

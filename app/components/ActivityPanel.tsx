@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AboutButton } from '~/components/AboutDialog';
 import type { Activity, ActivitySource } from '~/lib/journey/shared';
 
 export type TimedActivity = Activity & { at: number };
@@ -60,8 +61,11 @@ export function ActivityPanel({
             className="border-border bg-card flex max-h-[70dvh] flex-col rounded-lg border lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)]"
         >
             <div className="border-border space-y-3 border-b p-4">
-                <div className="flex items-baseline justify-between gap-4">
-                    <h2 className="font-medium">Behind the scenes</h2>
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-1">
+                        <h2 className="font-medium">Behind the scenes</h2>
+                        <AboutButton />
+                    </div>
                     <span className="text-muted-foreground font-mono text-sm tabular-nums">
                         {formatMs(elapsed)}
                     </span>
