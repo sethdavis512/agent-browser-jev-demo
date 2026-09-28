@@ -165,6 +165,19 @@ answers.next.confidence  // 0.91`}</Pre>
                 </p>
             </Section>
 
+            <Section title="Screenshots: Cloudinary, but optional">
+                <p>
+                    This deployment uploads each screenshot to{' '}
+                    <Strong>Cloudinary</Strong> and sends the page its CDN URL.
+                    That's only for hosting images. It plays no part in how
+                    agent-browser and Jev work, and it isn't required: without
+                    the <Code>CLOUDINARY_*</Code> keys, screenshots go to the
+                    page inline as base64 data URLs in the same stream, and
+                    everything else works the same. The only key you need is{' '}
+                    <Code>JEV_API_KEY</Code>.
+                </p>
+            </Section>
+
             <Section title="Plumbing">
                 <p>
                     The page posts to a React Router resource route that holds

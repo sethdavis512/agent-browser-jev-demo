@@ -208,7 +208,8 @@ function Intro({ running }: { running: boolean }) {
                         <strong className="text-foreground font-medium">
                             App
                         </strong>{' '}
-                        sends each screenshot to this page.
+                        sends each screenshot to this page, through Cloudinary
+                        here (optional).
                     </span>
                 </li>
             </ul>
