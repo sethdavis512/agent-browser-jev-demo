@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/* Semantic tokens; dark values follow the OS setting. */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-ring: var(--ring);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-destructive: var(--destructive);
+    --color-info: var(--info);
+    --color-success: var(--success);
+}
+
+:root {
+    color-scheme: light dark;
+    --background: oklch(0.985 0 0);
+    --foreground: oklch(0.269 0 0);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.96 0 0);
+    --muted-foreground: oklch(0.5 0 0);
+    --border: oklch(0.9 0 0);
+    --ring: oklch(0.708 0 0);
+    --primary: oklch(0.269 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.505 0.213 27.518);
+    --info: oklch(0.623 0.214 259.815);
+    --success: oklch(0.696 0.17 162.48);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: oklch(0.18 0 0);
+        --foreground: oklch(0.97 0 0);
+        --card: oklch(0.21 0 0);
+        --muted: oklch(0.24 0 0);
+        --muted-foreground: oklch(0.72 0 0);
+        --border: oklch(0.3 0 0);
+        --ring: oklch(0.556 0 0);
+        --primary: oklch(0.97 0 0);
+        --primary-foreground: oklch(0.205 0 0);
+        --destructive: oklch(0.704 0.191 22.216);
+    }
+}
+
+@layer base {
+    body {
+        background-color: var(--background);
+        color: var(--foreground);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+}
