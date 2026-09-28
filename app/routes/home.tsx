@@ -1,4 +1,4 @@
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Loader2 } from 'lucide-react';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ActivityPanel, type TimedActivity } from '~/components/ActivityPanel';
 import {
@@ -14,6 +14,18 @@ type RunState =
     | { phase: 'running'; host: string | null }
     | { phase: 'done'; status: JourneyStatus }
     | { phase: 'error'; message: string };
+
+const LINKS = [
+    {
+        label: 'agent-browser',
+        href: 'https://github.com/vercel-labs/agent-browser',
+    },
+    { label: 'Jev (TypeSafe docs)', href: 'https://docs.typesafe.ai/' },
+    {
+        label: 'Source on GitHub',
+        href: 'https://github.com/sethdavis512/agent-browser-jev-demo',
+    },
+];
 
 /** Ready-made prompts that run as soon as they are picked. */
 const EXAMPLES = [
@@ -117,7 +129,32 @@ export default function Home() {
 
     return (
         <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
-            <title>agent-browser-jev-demo</title>
+            <title>Agent Browser and Jev Demo</title>
+            <header className="mb-6 space-y-2">
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Agent Browser and Jev Demo
+                </h1>
+                <nav aria-label="Resources">
+                    <ul className="text-muted-foreground flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                        {LINKS.map((link) => (
+                            <li key={link.href}>
+                                <a
+                                    href={link.href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-0.5 rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2"
+                                >
+                                    {link.label}
+                                    <ArrowUpRight
+                                        aria-hidden
+                                        className="size-3.5"
+                                    />
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
+            </header>
             <form
                 onSubmit={handleSubmit}
                 className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_auto_auto]"
