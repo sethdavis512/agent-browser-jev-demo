@@ -56,6 +56,18 @@
     }
 }
 
+/* The empty-state wireframe's "clicked" ring: a slow, small nudge. */
+@keyframes wire-ring {
+    0%,
+    55%,
+    100% {
+        transform: scale(1);
+    }
+    25% {
+        transform: scale(1.12);
+    }
+}
+
 @layer base {
     body {
         background-color: var(--background);

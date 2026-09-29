@@ -1,6 +1,7 @@
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ActivityPanel, type TimedActivity } from '~/components/ActivityPanel';
+import { EmptyScreens } from '~/components/EmptyScreens';
 import { PageHeader } from '~/components/PageHeader';
 import {
     VIEWPORT,
@@ -30,6 +31,9 @@ const EXAMPLES = [
     'nasa.gov: find the page about the Artemis program',
 ];
 
+/** Examples that finish quickly, offered in the empty screenshot column. */
+const QUICK_STARTS = [EXAMPLES[0], EXAMPLES[6], EXAMPLES[4]];
+
 const OUTCOME: Record<JourneyStatus, string> = {
     FOUND: 'Found it.',
     STUCK: 'Got stuck: nothing on the last screen looked like a way forward.',
@@ -49,6 +53,11 @@ export default function AgentBrowser() {
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         void start(prompt);
+    }
+
+    function handleTry(example: string) {
+        setPrompt(example);
+        void start(example);
     }
 
     function handleExample(event: ChangeEvent<HTMLSelectElement>) {
@@ -176,12 +185,19 @@ export default function AgentBrowser() {
             <RunStatus run={run} steps={steps.length} />
 
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-                <ol className="grid gap-6 empty:hidden lg:empty:grid">
-                    {steps.map((step) => (
-                        <StepCard key={step.index} step={step} />
-                    ))}
-                    {running && <PendingCard />}
-                </ol>
+                {steps.length === 0 && !running ? (
+                    <EmptyScreens
+                        suggestions={QUICK_STARTS}
+                        onTry={handleTry}
+                    />
+                ) : (
+                    <ol className="grid gap-6">
+                        {steps.map((step) => (
+                            <StepCard key={step.index} step={step} />
+                        ))}
+                        {running && <PendingCard />}
+                    </ol>
+                )}
                 <ActivityPanel
                     activities={activities}
                     running={running}
