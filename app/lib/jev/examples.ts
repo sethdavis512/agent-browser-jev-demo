@@ -4,7 +4,11 @@
  * a visitor only ever edits the state.
  */
 
-export type JevQuestion =
+/**
+ * `plain` is how the page words the question for people; `instructions` is
+ * what Jev is actually sent.
+ */
+export type JevQuestion = { plain?: string } & (
     | {
           type: 'noul';
           instructions: string;
@@ -15,13 +19,16 @@ export type JevQuestion =
           instructions: string;
           /** Label to description; null leaves the label undescribed. */
           options: Record<string, string | null>;
+          /** Show the picked option's description instead of its label. */
+          showDescription?: boolean;
       }
     | {
           type: 'score';
           instructions: string;
           /** Rubric levels from score 0 upward. */
           levels: string[];
-      };
+      }
+);
 
 export type JevExample = {
     id: string;
@@ -142,6 +149,7 @@ export const JEV_EXAMPLES: JevExample[] = [
             fits: {
                 type: 'noul',
                 instructions: 'Can someone on `diet` eat `recipe` as written?',
+                plain: 'Can someone on this diet eat this recipe?',
                 criteria: {
                     true: 'Every ingredient fits the diet',
                     false: 'At least one ingredient breaks the diet',
@@ -177,6 +185,7 @@ export const JEV_EXAMPLES: JevExample[] = [
                 type: 'noul',
                 instructions:
                     'Does this function return a sensible result when `numbers` is an empty array?',
+                plain: 'Does this function work when the list is empty?',
             },
         },
     },
@@ -225,6 +234,7 @@ export const JEV_EXAMPLES: JevExample[] = [
                 type: 'noul',
                 instructions:
                     'A person is using the website in `page` to accomplish `goal`. Can they accomplish or answer `goal` from this screen?',
+                plain: 'Is this already the page the goal is looking for?',
                 criteria: {
                     true: 'This screen is the destination',
                     false: 'The destination is somewhere else: this screen only links toward it',
@@ -234,6 +244,7 @@ export const JEV_EXAMPLES: JevExample[] = [
                 type: 'choice',
                 instructions:
                     'A person is on `page` trying to reach the screen described by `goal`. Which element should they click next?',
+                plain: 'If not, what should be clicked next?',
                 options: {
                     el_0: 'link "Product"',
                     el_1: 'link "Solutions"',
@@ -242,6 +253,7 @@ export const JEV_EXAMPLES: JevExample[] = [
                     el_4: 'button "Sign in"',
                     none: 'None of these elements is likely to lead closer',
                 },
+                showDescription: true,
             },
         },
     },

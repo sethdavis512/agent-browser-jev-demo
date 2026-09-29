@@ -34,9 +34,11 @@ Journeys use your local Chrome, which agent-browser finds on its own.
 The examples live in `app/lib/jev/examples.ts`. The page sends the chosen
 example's id and the (possibly edited) state to the `/jev` route's action,
 which builds the real `noul`/`choice`/`score` questions and makes one
-`systemOne` request (`app/lib/jev/ask.server.ts`). The page shows each
-answer's probabilities, the latency and token count, the request as code,
-and the raw response.
+`systemOne` request (`app/lib/jev/ask.server.ts`). The page opens on an
+answered example and shows each answer in plain words ("Yes, 94% sure").
+Two collapsed sections hold the detail: "See the numbers" (every option's
+probability as a bar, plus latency and tokens) and "See the code" (the
+request as SDK code and the raw response).
 
 ## How the browser demo works
 
