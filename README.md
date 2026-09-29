@@ -1,17 +1,23 @@
 # agent-browser-jev-demo
 
-Type a site and something to find, or pick one of the examples. A real
-browser walks the site one click at a time. Each screen it visits shows up on
-the left as it happens, and the panel on the right shows what's going on
-behind it: every agent-browser action, every Jev decision, and how long each
-one took.
+Two small playgrounds, picked from the home page:
+
+1. **Jev** (`/jev`): Jev on its own. Pick one of ten examples and Jev
+   answers typed questions about it: yes or no as a probability (`noul`), one
+   label from a set (`choice`), or a place on a scale (`score`). Edit the text
+   and ask again to see the answers move. Start here if Jev is new to you.
+2. **Jev + Agent Browser** (`/agent-browser`): type a site and something to
+   find, or pick an example. A real browser walks the site one click at a
+   time. Each screen shows up on the left as it happens, and the panel on the
+   right shows every agent-browser action, every Jev decision, and how long
+   each one took.
 
 ```
 stripe.com: find the fee for international cards
 ```
 
-One page, no accounts, no database, no background jobs. Nothing is saved;
-refresh and it's gone.
+No accounts, no database, no background jobs. Nothing is saved; refresh and
+it's gone.
 
 ## Run it
 
@@ -23,7 +29,16 @@ bun run dev
 
 Journeys use your local Chrome, which agent-browser finds on its own.
 
-## How it works
+## How the Jev playground works
+
+The examples live in `app/lib/jev/examples.ts`. The page sends the chosen
+example's id and the (possibly edited) state to the `/jev` route's action,
+which builds the real `noul`/`choice`/`score` questions and makes one
+`systemOne` request (`app/lib/jev/ask.server.ts`). The page shows each
+answer's probabilities, the latency and token count, the request as code,
+and the raw response.
+
+## How the browser demo works
 
 1. The page posts the text to `/run` (`app/routes/run.ts`).
 2. `parsePrompt()` (`app/lib/journey/prompt.ts`) pulls out the first web
@@ -48,18 +63,21 @@ A journey stops when Jev finds the destination, runs out of ideas, hits 10
 screens, or meets a bot check (it never tries to get past one). Only public
 http(s) sites can be visited.
 
-| File                                 | What it does                                   |
-| ------------------------------------ | ---------------------------------------------- |
-| `app/routes/home.tsx`                | The page: text box, examples, screenshots      |
-| `app/components/ActivityPanel.tsx`   | The "Behind the scenes" timeline and timings   |
-| `app/components/AboutDialog.tsx`     | The info modal: how agent-browser and Jev fit  |
-| `app/routes/run.ts`                  | Runs a journey and streams it as NDJSON        |
-| `app/lib/journey/navigate.server.ts` | The read, judge, screenshot, click loop        |
-| `app/lib/journey/browser.server.ts`  | agent-browser CLI wrapper                      |
-| `app/lib/journey/judge.server.ts`    | The Jev questions                              |
-| `app/lib/journey/candidates.ts`      | Which elements are clickable, same-site checks |
-| `app/lib/journey/focus.ts`           | Goal-focused page text for long pages          |
-| `app/lib/cloudinary.server.ts`       | Screenshot upload (or data URL fallback)       |
+| File                                 | What it does                                      |
+| ------------------------------------ | ------------------------------------------------- |
+| `app/routes/home.tsx`                | The picker between the two demos                  |
+| `app/routes/jev.tsx`                 | The Jev playground                                |
+| `app/lib/jev/examples.ts`            | The ten Jev examples                              |
+| `app/routes/agent-browser.tsx`       | The browser demo: text box, examples, screenshots |
+| `app/components/ActivityPanel.tsx`   | The "Behind the scenes" timeline and timings      |
+| `app/components/AboutDialog.tsx`     | The info modal: how agent-browser and Jev fit     |
+| `app/routes/run.ts`                  | Runs a journey and streams it as NDJSON           |
+| `app/lib/journey/navigate.server.ts` | The read, judge, screenshot, click loop           |
+| `app/lib/journey/browser.server.ts`  | agent-browser CLI wrapper                         |
+| `app/lib/journey/judge.server.ts`    | The Jev questions                                 |
+| `app/lib/journey/candidates.ts`      | Which elements are clickable, same-site checks    |
+| `app/lib/journey/focus.ts`           | Goal-focused page text for long pages             |
+| `app/lib/cloudinary.server.ts`       | Screenshot upload (or data URL fallback)          |
 
 ## Deploy
 

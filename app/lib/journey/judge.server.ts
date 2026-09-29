@@ -1,4 +1,5 @@
-import { choice, noul, TypeSafeClient } from '@typesafe-ai/sdk';
+import { choice, noul } from '@typesafe-ai/sdk';
+import { getJevClient } from '~/lib/typesafe.server';
 import { stripRefUrls, type Candidate } from './candidates';
 import type { PageState } from './browser.server';
 
@@ -6,17 +7,6 @@ const NONE = 'none';
 
 /** The accessibility tree is long on busy pages; keep the state compact. */
 const MAX_TREE_CHARS = 6000;
-
-let client: TypeSafeClient | undefined;
-
-function getClient() {
-    const apiKey = process.env.JEV_API_KEY;
-    if (!apiKey) {
-        throw new Error('JEV_API_KEY is not set, so journeys cannot run');
-    }
-    client ??= new TypeSafeClient({ apiKey });
-    return client;
-}
 
 export type StepJudgment = {
     /** Noul probability that the current screen fulfills the goal. */
@@ -50,7 +40,7 @@ export async function judgeStep({
     criteria[NONE] =
         'None of these elements is likely to lead closer to the screen the goal describes';
 
-    const response = await getClient().systemOne({
+    const response = await getJevClient().systemOne({
         state: {
             goal,
             page: {
@@ -114,7 +104,7 @@ export async function pickEvidence(
     });
     criteria[NONE] = 'None of these passages answers the goal';
 
-    const response = await getClient().systemOne({
+    const response = await getJevClient().systemOne({
         state: { goal },
         questions: {
             evidence: choice(
